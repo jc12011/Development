@@ -5,18 +5,31 @@ import os
 from bs4.element import Tag
 from datetime import datetime
 
-# Set mode: "all" for one file, "yearly" for one file per year
-mode = "all"  # or "yearly"
+# Ask user for data mode
+data_mode = input("Select ball data mode: [1] Ascending(default) [2] Real Sequence: ").strip()
+if data_mode == "2":
+    use_sequence = True
+    print("You selected: Real Sqeuence mode")
+else:
+    use_sequence = False
+    print("You selected: Ascending(Normal) mode")
+
+# Set file save mode: "all" for one file, "yearly" for one file per year
+mode = input("Save as [1] all years in one file (default) or [2] one file per year? ").strip()
+# mode == 2: yearly, mode == 1: all
+
 
 filePath = './files/'
 os.makedirs(filePath, exist_ok=True)
 
 current_year = datetime.now().year
 
-def fetch_year_data(year):
+def fetch_year_data(year, use_sequence=False):  
+    sqeuence_url = f'https://www.nfd.com.tw/house/year/F{year}.htm'
     url = f'https://www.nfd.com.tw/house/year/{year}.htm'
+    fetch_url = sqeuence_url if use_sequence else url
     try:
-        resp = requests.get(url, timeout=10)
+        resp = requests.get(fetch_url, timeout=10)
         resp.encoding = 'big5'
         soup = BeautifulSoup(resp.text, "html.parser")
         table = soup.find('table', {'border': '1'})
@@ -42,20 +55,21 @@ all_columns = None
 
 for year in range(1976, current_year + 1):
     print(f'Processing year: {year}')
-    title, data = fetch_year_data(year)
-    if title and data:
-        if mode == "yearly":
-            df = pd.DataFrame(data, columns=title)
-            df.to_csv(os.path.join(filePath, f'{year}.csv'), index=False)
-            print(f'Saved: {year}.csv')
-        elif mode == "all":
-            for row in data:
-                #all_data.append([year] + row) #the year is already in the title
-                all_data.append(row) 
-            if all_columns is None:
-                #all_columns = ["Year"] + title #the year is already in the title
-                all_columns = title
-    # else: message already printed in fetch_year_data
+    try:
+        title, data = fetch_year_data(year, use_sequence)
+        if title and data:
+            if mode == "2":
+                df = pd.DataFrame(data, columns=title)
+                df.to_csv(os.path.join(filePath, f'{year}.csv'), index=False)
+                print(f'Saved: {year}.csv')
+            elif mode == "1":
+                for row in data:
+                    all_data.append(row) 
+                if all_columns is None:
+                    all_columns = title
+        # else: message already printed in fetch_year_data
+    except Exception as e:
+        print(f"Exception occurred while processing year {year}: {e}")
 
 if mode == "all" and all_data and all_columns:
     df_all = pd.DataFrame(all_data, columns=all_columns)
